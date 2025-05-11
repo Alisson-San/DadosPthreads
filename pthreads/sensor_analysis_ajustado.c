@@ -30,8 +30,8 @@ typedef struct {
 
 typedef struct {
     char device[MAX_DEVICE];
-    char month[MAX_MONTH];           // Ex: "2024-03"
-    char sensor[MAX_SENSOR_NAME];   // Ex: "temperature", "humidity" etc.
+    char month[MAX_MONTH];
+    char sensor[MAX_SENSOR_NAME];
     float min;
     float max;
     float sum;
@@ -55,9 +55,28 @@ char *trim(char *str) {
     end[1] = '\0';
     return str;
 }
-
 int is_same_group(SensorStats *a, const char *device, const char *month, const char *sensor) {
     return strcmp(a->device, device) == 0 && strcmp(a->month, month) == 0 && strcmp(a->sensor, sensor) == 0;
+}
+
+void salvar_csv(SensorStats *stats, int total, const char *nome_arquivo) {
+    FILE *fp = fopen(nome_arquivo, "w");
+    if (!fp) {
+        perror("Erro ao criar arquivo de saida");
+        return;
+    }
+
+    fprintf(fp, "device;ano-mes;sensor;valor_maximo;valor_medio;valor_minimo\n");
+
+    for (int i = 0; i < total; i++) {
+        SensorStats *g = &stats[i];
+        float media = g->sum / g->count;
+        fprintf(fp, "%s;%s;%s;%.2f;%.2f;%.2f\n",
+                g->device, g->month, g->sensor, g->max, media, g->min);
+    }
+
+    fclose(fp);
+    printf("\nArquivo de resultados salvo como '%s'\n", nome_arquivo);
 }
 
 void process_stats(SensorData *data, int record_count) {
@@ -66,7 +85,6 @@ void process_stats(SensorData *data, int record_count) {
 
     for (int i = 0; i < record_count; i++) {
         SensorData s = data[i];
-
         char month[8];
         strncpy(month, s.date, 7);
         month[7] = '\0';
@@ -114,8 +132,9 @@ void process_stats(SensorData *data, int record_count) {
         printf("Device: %s | Mes: %s | Sensor: %s | Min: %.2f | Max: %.2f | Media: %.2f\n",
                g->device, g->month, g->sensor, g->min, g->max, media);
     }
-}
 
+    salvar_csv(stats, group_count, "resultados.csv");
+}
 int read_csv(const char *filename, SensorData **data) {
     FILE *file = fopen(filename, "r");
     if (!file) {
@@ -143,9 +162,7 @@ int read_csv(const char *filename, SensorData **data) {
             tok = strtok(NULL, "|");
         }
 
-        if (field_count != MAX_FIELDS) {
-            continue;
-        }
+        if (field_count != MAX_FIELDS) continue;
 
         records = realloc(records, (record_count + 1) * sizeof(SensorData));
         if (!records) {
@@ -155,7 +172,6 @@ int read_csv(const char *filename, SensorData **data) {
         }
 
         memset(&records[record_count], 0, sizeof(SensorData));
-
         char *token = strtok(line, "|");
         for (int i = 0; i < MAX_FIELDS && token != NULL; i++) {
             char *clean = trim(token);
@@ -219,7 +235,6 @@ int main(int argc, char *argv[]) {
 
     print_sample(data, record_count, 5);
     process_stats(data, record_count);
-
     free(data);
     return 0;
 }
